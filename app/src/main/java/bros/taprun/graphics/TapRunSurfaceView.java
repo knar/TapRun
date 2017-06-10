@@ -7,14 +7,11 @@ import bros.taprun.graphics.mesh.MeshRenderer;
 
 public class TapRunSurfaceView extends GLSurfaceView {
 
-    private GLSurfaceView.Renderer renderer;
-
-    public TapRunSurfaceView(Activity activity) {
+    public TapRunSurfaceView(Activity activity, GLSurfaceView.Renderer renderer) {
         super(activity);
 
         setEGLContextClientVersion(2);
 
-        renderer = new MeshRenderer();
         setRenderer(renderer);
 
         setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);

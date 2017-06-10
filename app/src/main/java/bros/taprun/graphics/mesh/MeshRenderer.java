@@ -1,5 +1,6 @@
 package bros.taprun.graphics.mesh;
 
+import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
@@ -11,15 +12,22 @@ import java.util.Map;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-import bros.taprun.game.Grid;
-
 public class MeshRenderer implements GLSurfaceView.Renderer {
 
-    // The Map of Mesh Lists
-    private Map<MeshType, ArrayList<Mesh>> meshes;
+    private Context context;
+
+    // The thing we update
+    private Runnable game;
+
+    private float[] clearColor;
+
+    // The Map of MeshPlacement Lists
+    private Map<Mesh, ArrayList<MeshPlacement>> meshes;
 
     // The Camera transform
+    private float[] screenMatrix = new float[16];
     private float[] viewMatrix = new float[16];
+    private float viewWidth = 1f;
 
     // Shader (Should be separate class?)
     private final String vertexShaderCode =
@@ -42,32 +50,38 @@ public class MeshRenderer implements GLSurfaceView.Renderer {
     private int mvpHandle;
     private int colorHandle;
 
-    private Grid grid;
-
     //Methods
 
-    public MeshRenderer() {
+    public MeshRenderer(Context ctx, Runnable runner) {
+        context = ctx;
+        game = runner;
 
         meshes = new HashMap<>();
 
-        grid = new Grid();
-        grid.addMeshes(this);
-
-        Matrix.setIdentityM(viewMatrix, 0);
+        Matrix.setIdentityM(screenMatrix, 0);
     }
 
-    public void addMesh(Mesh mesh) {
+    public void addMesh(MeshPlacement mesh) {
         if (!meshes.containsKey(mesh.getMeshType())) {
-            meshes.put(mesh.getMeshType(), new ArrayList<Mesh>());
+            meshes.put(mesh.getMeshType(), new ArrayList<MeshPlacement>());
         }
         meshes.get(mesh.getMeshType()).add(mesh);
     }
 
+    public void removeMesh(MeshPlacement mesh) {
+        meshes.get(mesh.getMeshType()).remove(mesh);
+    }
+
+    public void setViewWidth(float width) {
+        viewWidth = width;
+    }
+
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-        GLES20.glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+
+        GLES20.glEnable( GLES20.GL_DEPTH_TEST );
 
         initShader();
     }
@@ -78,34 +92,43 @@ public class MeshRenderer implements GLSurfaceView.Renderer {
 
         float ratio = (float) width / height;
 
-        Matrix.setIdentityM(viewMatrix, 0);
-        Matrix.translateM(viewMatrix, 0, -1f, -1f, 0f);
-        Matrix.scaleM(viewMatrix, 0, 1, ratio, 1);
-        Matrix.scaleM(viewMatrix, 0,  2f / grid.getWidth(), 2f / grid.getWidth(), 1);
+        float margin = 0.2f;
+
+        Matrix.setIdentityM(screenMatrix, 0);
+        Matrix.translateM(screenMatrix, 0, -1f + margin, -1f, 0f);
+        Matrix.scaleM(screenMatrix, 0, 1, ratio, 1);
+        Matrix.scaleM(screenMatrix, 0,  2f * (1 - margin) / viewWidth, 2f * (1 - margin) / viewWidth, 1);
     }
 
     @Override
     public void onDrawFrame(GL10 gl) {
+        game.run();
+
+        GLES20.glClearDepthf(1.0f);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+
+        GLES20.glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
 
         GLES20.glUseProgram(program);
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-        for (MeshType meshType : meshes.keySet()) {
+        for (Mesh meshType : meshes.keySet()) {
 
             positionHandle = GLES20.glGetAttribLocation(program, "vPosition");
             GLES20.glEnableVertexAttribArray(positionHandle);
-            GLES20.glVertexAttribPointer(positionHandle, MeshType.COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, meshType.getVertexStride(), meshType.getVertexBuffer());
+            GLES20.glVertexAttribPointer(positionHandle, Mesh.COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, meshType.getVertexStride(), meshType.getVertexBuffer());
 
             mvpHandle = GLES20.glGetUniformLocation(program, "uMVPMatrix");
             colorHandle = GLES20.glGetUniformLocation(program, "vColor");
 
             float[] mvp;
 
-            for (Mesh mesh : meshes.get(meshType)) {
+            for (MeshPlacement mesh : meshes.get(meshType)) {
 
                 mvp = mesh.createModelMatrix();
                 Matrix.multiplyMM(mvp, 0, viewMatrix, 0, mvp, 0);
+                Matrix.multiplyMM(mvp, 0, screenMatrix, 0, mvp, 0);
 
                 GLES20.glUniform4fv(colorHandle, 1, mesh.getColor(), 0);
                 GLES20.glUniformMatrix4fv(mvpHandle, 1, false, mvp, 0);
@@ -136,6 +159,15 @@ public class MeshRenderer implements GLSurfaceView.Renderer {
         GLES20.glCompileShader(shader);
 
         return shader;
+    }
+
+    public void setClearColor(float[] color) {
+        clearColor = color;
+    }
+
+    public void updateViewMatrix(float distance) {
+        Matrix.setIdentityM(viewMatrix, 0);
+        Matrix.translateM(viewMatrix, 0, 0, -distance, 0);
     }
 
 }

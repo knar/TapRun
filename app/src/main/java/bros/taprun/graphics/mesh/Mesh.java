@@ -1,76 +1,101 @@
 package bros.taprun.graphics.mesh;
 
-import android.opengl.Matrix;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.nio.ShortBuffer;
 
 public class Mesh {
 
-    private MeshType meshType;
+    public static final int COORDS_PER_VERTEX = 3;
 
-    // Transform
-    private float[] position;
-    private float rotation;
-    private float[] scale;
+    private static final float squareCoords[] = {
+            -0.5f, 0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            0.5f, 0.5f, 0.0f
+    };
+    private static final short squareDrawOrder[] = { 0, 1, 2, 0, 2, 3 };
 
-    //Appearance
-    private float[] color;
+    private static final float rightTriangleCoords[] = {
+            -0.5f, 0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f
+    };
+    private static final short rightTriangleDrawOrder[] = { 0, 1, 2 };
 
-    public Mesh(MeshType meshType, float[] position, float rotation, float[] scale, float[] color) {
-        this.meshType = meshType;
-        this.position = position;
-        this.rotation = rotation;
-        this.scale = scale;
-        this.color = color;
+    private static final float tileCoords[] = {
+            0.5f, 0f, 0f,
+            -0.5f, 1f / (float) Math.sqrt(3), 0f,
+            -0.5f, -1f / (float) Math.sqrt(3), 0f
+    };
+    private static final short tileDrawOrder[] = { 0, 1, 2 };
+
+    private static final int FLOAT_SIZE = 4;
+
+    public static final Mesh SQUARE_TYPE = new Mesh(Mesh.squareCoords, Mesh.squareDrawOrder);
+    public static final Mesh RIGHT_TRIANGLE_TYPE = new Mesh(Mesh.rightTriangleCoords, Mesh.rightTriangleDrawOrder);
+    public static final Mesh TRIANGLE_TYPE = new PolygonMesh(3);
+    public static final Mesh TILE_TYPE = new Mesh(Mesh.tileCoords, Mesh.tileDrawOrder);
+    public static final Mesh CIRCLE_TYPE = new PolygonMesh(12);
+
+    private float[] coords;
+    private short[] drawOrder;
+
+    private int vertexCount;
+    private int vertexStride;
+
+    private FloatBuffer vertexBuffer;
+    private ShortBuffer drawListBuffer;
+
+    public Mesh() { }
+
+    public Mesh(float[] coords, short[] drawOrder) {
+        init(coords, drawOrder);
     }
 
-    public float[] createModelMatrix() {
-        float[] modelMatrix = new float[16];
-        Matrix.setIdentityM(modelMatrix, 0);
-        Matrix.translateM(modelMatrix, 0, position[0], position[1], 0);
-        Matrix.scaleM(modelMatrix, 0, scale[0], scale[1], 0);
-        Matrix.rotateM(modelMatrix, 0, rotation, 0f, 0f, 1.0f);
-        return modelMatrix;
+    public void init(float[] coords, short[] drawOrder) {
+        this.coords = coords;
+        this.drawOrder = drawOrder;
+
+        vertexCount = coords.length / COORDS_PER_VERTEX;
+        vertexStride = COORDS_PER_VERTEX * FLOAT_SIZE;
+
+        createBuffers();
     }
 
-    // Setters and Getters
+    private void createBuffers() {
+        ByteBuffer bb = ByteBuffer.allocateDirect(coords.length * 4);
+        bb.order(ByteOrder.nativeOrder());
+        vertexBuffer = bb.asFloatBuffer();
+        vertexBuffer.put(coords);
+        vertexBuffer.position(0);
 
-    public MeshType getMeshType() {
-        return meshType;
+        ByteBuffer dlb = ByteBuffer.allocateDirect(drawOrder.length * 2);
+        dlb.order(ByteOrder.nativeOrder());
+        drawListBuffer = dlb.asShortBuffer();
+        drawListBuffer.put(drawOrder);
+        drawListBuffer.position(0);
     }
 
-    public void setMeshType(MeshType meshType) {
-        this.meshType = meshType;
+    public int getVertexCount() {
+        return vertexCount;
     }
 
-    public float[] getPosition() {
-        return position;
+    public int getVertexStride() {
+        return vertexStride;
     }
 
-    public void setPosition(float[] position) {
-        this.position = position;
+    public FloatBuffer getVertexBuffer() {
+        return vertexBuffer;
     }
 
-    public float getRotation() {
-        return rotation;
+    public ShortBuffer getDrawListBuffer() {
+        return drawListBuffer;
     }
 
-    public void setRotation(float rotation) {
-        this.rotation = rotation;
-    }
-
-    public float[] getScale() {
-        return scale;
-    }
-
-    public void setScale(float[] scale) {
-        this.scale = scale;
-    }
-
-    public float[] getColor() {
-        return color;
-    }
-
-    public void setColor(float[] color) {
-        this.color = color;
+    public int getDrawOrderLength() {
+        return drawOrder.length;
     }
 
 }
